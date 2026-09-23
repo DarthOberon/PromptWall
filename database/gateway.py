@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, Tuple
 
 from database.connection import get_connection
 from security.authorization import authorize_query
+from security.audit import log_event
 
 
 class DatabaseGateway:
@@ -15,10 +16,14 @@ class DatabaseGateway:
 
     def execute(self, user: Dict[str, Any], query: Dict[str, Any]) -> Dict[str, Any]:
         decision = authorize_query(user, query)
+
         if decision["decision"] != "ALLOW":
+
+            log_event(user, decision["decision"], decision["reason"],query.get("table"),query.get("operation"))
             return decision
 
         sql, params = build_parameterized_select(query)
+        log_event(user, "ALLOW", "AUTHORIZED", query.get("table"),query.get("operation"))
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
         try:

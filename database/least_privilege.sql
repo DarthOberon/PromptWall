@@ -1,6 +1,6 @@
 -- Run as a MySQL administrative account, not the application account.
 CREATE USER IF NOT EXISTS 'promptwall_app'@'localhost'
-IDENTIFIED BY 'STRONG_PASSWORD';
+IDENTIFIED BY 'HelloAdminRoot';
 
 GRANT SELECT ON promptwall_db.* TO 'promptwall_app'@'localhost';
 
