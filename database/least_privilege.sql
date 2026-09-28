@@ -4,7 +4,10 @@ IDENTIFIED BY 'HelloAdminRoot';
 
 GRANT SELECT ON promptwall_db.* TO 'promptwall_app'@'localhost';
 
+GRANT INSERT ON promptwall_db.audit TO 'promptwall_app'@'localhost';
+
 SHOW GRANTS FOR 'promptwall_app'@'localhost';
 
 -- The application account intentionally receives no INSERT, UPDATE, DELETE,
--- DROP, ALTER, CREATE, or GRANT OPTION privileges.
+-- DROP, ALTER, CREATE, or GRANT OPTION privileges. INSERT is allowed only
+-- for the audit logs purposes.

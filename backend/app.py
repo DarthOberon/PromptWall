@@ -25,7 +25,7 @@ def query():
     if not user or not query_data:
         return jsonify({"decision" : "BLOCK", "reason" : "USER_OR_QUERY_MISSING"}),400
 
-    result = gateway.execute(user,query)
+    result = gateway.execute(user,query_data)
 
     status_code = 200 if result["decision"] == "ALLOW" else 403
 

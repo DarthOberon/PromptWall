@@ -68,6 +68,31 @@ def build_parameterized_select(query: Dict[str, Any]) -> Tuple[str, Tuple[Any, .
     predicates = []
     params = []
 
+    if table == "students" and "course_id" in conditions:
+        for key in conditions:
+            if key != "course_id" and key not in allowed_columns[table]:
+                raise ValueError("CONDITION_COLUMN_NOT_SUPPORTED")
+
+        predicates.append("`student_course`.`course_id` = %s")
+        params.append(conditions["course_id"])
+
+        for key, value in conditions.items():
+            if key == "course_id":
+                continue
+            predicates.append(f"`students`.`{key}` = %s")
+            params.append(value)
+
+        sql = (
+            f"SELECT" + ", ".join(f"`students`.`{column}`" for column in columns) + " "
+            f"FROM `students` "
+            f"JOIN `student_course` "
+            f"ON `students`.`student_id` = `student_course`.`student_id` "
+            f"WHERE " + " AND ".join(predicates)
+        )
+
+        return sql, tuple(params)
+ 
+
     for key, value in conditions.items():
         if key not in allowed_columns[table]:
             raise ValueError("CONDITION_COLUMN_NOT_SUPPORTED")
