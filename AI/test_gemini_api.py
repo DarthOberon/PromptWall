@@ -5,7 +5,7 @@ parser =  GeminiQueryParser()
 user = {
     "user_id":1,
     "role":"Student",
-    "studnet_id":101,
+    "student_id":101,
 }
 
 result = parser.parse("Show me my attendance", user)

@@ -21,7 +21,7 @@ Return ONLY JSON with this structure:
     "operation": "SELECT",
     "table": "attendance",
     "columns": ["attendance_date", "status"],
-    row_conditions":{}
+    "row_conditions":{}
 }
 
 Supported tables:
