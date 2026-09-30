@@ -10,26 +10,11 @@ st.set_page_config(
 )
 
 # --- CUSTOM CSS ---
-# Adding some custom styling to make the UI look more modern
 st.markdown("""
 <style>
-    /* Main background */
-    .stApp {
-        background-color: #f8f9fa;
-    }
-    
-    /* Adjusting chat message styling */
-    .stChatMessage {
-        border-radius: 10px;
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-    
-    /* Header styling */
-    h1 {
-        color: #1E3A8A;
-        font-family: 'Inter', sans-serif;
-    }
+    .stApp { background-color: #f8f9fa; }
+    .stChatMessage { border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+    h1 { color: #1E3A8A; font-family: 'Inter', sans-serif; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -39,14 +24,15 @@ with st.sidebar:
     st.title("Chat Settings")
     st.write("Welcome to your modern AI Chat Assistant. Configure your settings here.")
     
-    # Model selection (mockup)
     selected_model = st.selectbox("Choose a Model", ["GPT-4 Turbo", "Claude 3 Opus", "Gemini 1.5 Pro"])
     
     st.divider()
     
-    # Clear chat button
+    # Improved Clear Chat: Resets to the initial greeting instead of a blank screen
     if st.button("🗑️ Clear Chat History", use_container_width=True):
-        st.session_state.messages = []
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Hello! I am your AI assistant. How can I help you today?"}
+        ]
         st.rerun()
         
     st.markdown("---")
@@ -57,47 +43,38 @@ st.title("✨ AI Chat Assistant")
 st.caption(f"Currently chatting with: **{selected_model}**")
 
 # --- SESSION STATE INITIALIZATION ---
-# Initialize chat history if it doesn't exist
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hello! I am your AI assistant. How can I help you today?"}
     ]
 
 # --- DISPLAY CHAT MESSAGES ---
-# Display messages from history on app rerun
 for message in st.session_state.messages:
     avatar = "🤖" if message["role"] == "assistant" else "👤"
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
+# --- STREAMING GENERATOR ---
+# This function yields words one by one for Streamlit's native write_stream
+def stream_mock_response(text):
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.05)
+
 # --- CHAT INPUT & LOGIC ---
-# Accept user input
 if prompt := st.chat_input("Type your message here..."):
     
-    # 1. Display user message in chat message container
+    # 1. Add user message to state and display it
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
         
-    # 2. Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    # 3. Display assistant response in chat message container
+    # 2. Display assistant response
     with st.chat_message("assistant", avatar="🤖"):
-        message_placeholder = st.empty()
-        full_response = ""
+        mock_text = f"I am a simulated AI. You said: '{prompt}'. This is where you would connect a real API."
         
-        # Simulate a streaming response from an AI model
-        mock_response = f"I am a simulated AI. You said: '{prompt}'. This is where you would connect an API (like OpenAI, Anthropic, or Google) to generate real responses based on the conversation history."
+        # Streamlit's built-in streaming (much smoother than manual placeholders)
+        full_response = st.write_stream(stream_mock_response(mock_text))
         
-        # Stream the response word by word
-        for chunk in mock_response.split():
-            full_response += chunk + " "
-            time.sleep(0.05) # Simulate typing speed
-            # Add a blinking cursor to simulate typing
-            message_placeholder.markdown(full_response + "▌")
-            
-        # Final display without the cursor
-        message_placeholder.markdown(full_response)
-        
-    # 4. Add assistant response to chat history
+    # 3. Add assistant response to state
     st.session_state.messages.append({"role": "assistant", "content": full_response})
