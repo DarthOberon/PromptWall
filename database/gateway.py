@@ -4,7 +4,7 @@ Only allowlisted structured query objects are translated into SQL. The gateway
 never executes raw SQL supplied by a caller.
 """
 
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Tuple
 
 from database.connection import get_connection
 from security.authorization import authorize_query

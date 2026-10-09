@@ -137,10 +137,11 @@ if prompt := st.chat_input("Type your message here..."):
                 )
 
         except requests.RequestException as exc:
+            result = None
             full_response = f"Error: Could not connect to PromptWall backend:`{exc}`"
 
         message_placeholder.markdown(full_response, unsafe_allow_html=True) 
-        if result.get("decision") == "ALLOW" and rows:
+        if result and result.get("decision") == "ALLOW" and rows:
             st.dataframe(rows, use_container_width=True,hide_index=True)
             
 
