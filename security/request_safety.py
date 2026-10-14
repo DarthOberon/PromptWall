@@ -14,6 +14,7 @@ UNSAFE_PATTERNS = [
     r"\bremove\b",
     r"\bdestroy\b",
     r"\bwipe\b",
+    r"\bempty\b",
     r"\bmodify\b",
     r"\boverwrite\b",
     r"\bexecute\s+sql\b",
