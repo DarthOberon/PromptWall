@@ -83,7 +83,7 @@ def build_parameterized_select(query: Dict[str, Any]) -> Tuple[str, Tuple[Any, .
             params.append(value)
 
         sql = (
-            f"SELECT" + ", ".join(f"`students`.`{column}`" for column in columns) + " "
+            f"SELECT" + ", ".join(f"`students`.`{column}`" for column in columns) + " " # FLAGGED FOR LATER REVIEW
             f"FROM `students` "
             f"JOIN `student_course` "
             f"ON `students`.`student_id` = `student_course`.`student_id` "
