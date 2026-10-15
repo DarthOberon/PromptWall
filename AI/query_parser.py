@@ -29,7 +29,8 @@ For a supported, clearly intended read-only database request:
         "operation": "SELECT",
         "table": "attendance",
         "columns": ["attendance_date", "status"],
-        "row_conditions": {}
+        "row_conditions": {},
+        "subject": "self"
     },
     "reason": "READ_QUERY_PARSED"
 }
@@ -68,6 +69,11 @@ Rules:
 9. Do not return any keys other than status, query, and reason.
 10. READY means only that a candidate query was parsed. It does not
     mean the query is authorized or may execute.
+11. Every READY query must include a "subject" field inside "query".
+12. Set "subject" to "self" when the user clearly asks for their own records.
+13. Set "subject" to "named_student" when the user explicitly names another student.
+14. If the request's subject is ambiguous, return REJECT.
+15. Never infer that a named student is the current user merely because the user is a Student.
 
 Return JSON only.
 """
@@ -190,6 +196,7 @@ User request:
                 "reason": "INVALID_COLUMNS",
             }
 
+        
         if not isinstance(row_conditions, dict):
             return {
                 "status": "REJECT",
@@ -197,7 +204,17 @@ User request:
                 "reason": "INVALID_CONDITIONS",
             }
 
+        subject = query.get("subject")
+        if subject not in {"self", "named_student"}:
+            return {
+                "status": "REJECT",
+                "query": None,
+                "reason": "INVALID_SUBJECT",
+            }
+
         query["row_conditions"] = row_conditions
+        query["subject"] = subject
+
 
         return {
             "status": "READY",

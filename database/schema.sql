@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS courses (
     FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id)
 );
 
+CREATE TABLE IF NOT EXISTS student_course (
+    student_id INT NOT NULL,
+    course_id INT NOT NULL,
+    PRIMARY KEY (student_id, course_id),
+    INDEX idx_student_course_course (course_id),
+    FOREIGN KEY (student_id) REFERENCES students(student_id),
+    FOREIGN KEY (course_id) REFERENCES courses(course_id)
+);
+
 CREATE TABLE IF NOT EXISTS faculty_course_access (
     faculty_id INT NOT NULL,
     course_id INT NOT NULL,
