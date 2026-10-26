@@ -6,6 +6,8 @@ never executes raw SQL supplied by a caller.
 
 from typing import Any, Dict, Tuple
 
+from streamlit import user
+
 from database.connection import get_connection
 from security.authorization import authorize_query
 from security.audit import log_event
@@ -15,6 +17,12 @@ class DatabaseGateway:
     """Authorize structured requests before executing parameterized SQL."""
 
     def execute(self, user: Dict[str, Any], query: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(user, dict) or not isinstance(query, dict):
+            return {
+                "decision": "BLOCK",
+                "reason": "AUTHENTICATION_CONTEXT_MISSING",
+            }
+
         decision = authorize_query(user, query)
 
         if decision["decision"] != "ALLOW":
@@ -22,7 +30,7 @@ class DatabaseGateway:
             log_event(user, decision["decision"], decision["reason"],query.get("table"),query.get("operation"))
             return decision
 
-        sql, params = build_parameterized_select(query)
+        sql, params = build_parameterized_select(query, user)
         log_event(user, "ALLOW", "AUTHORIZED", query.get("table"),query.get("operation"))
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
@@ -39,7 +47,7 @@ class DatabaseGateway:
             connection.close()
 
 
-def build_parameterized_select(query: Dict[str, Any]) -> Tuple[str, Tuple[Any, ...]]:
+def build_parameterized_select(query: Dict[str, Any], user: Dict[str, Any],) -> Tuple[str, Tuple[Any, ...]]:
     """Build a SELECT statement from an already-authorized structured query.
 
     Identifiers come only from internal allowlists; values are always bound as
@@ -61,7 +69,27 @@ def build_parameterized_select(query: Dict[str, Any]) -> Tuple[str, Tuple[Any, .
         raise ValueError("TABLE_NOT_SUPPORTED")
     if not columns or any(column not in allowed_columns[table] for column in columns):
         raise ValueError("COLUMN_NOT_SUPPORTED")
-    if not conditions:
+    if table == "courses" and query.get("subject") == "self" and user.get("role") == "Faculty":
+        if user.get("role") != "Faculty" or user.get("faculty_id") is None:
+            raise ValueError("FACULTY_COURSE_SCOPE_REQUIRED")
+
+        allowed_course_columns = {"course_id", "course_name", "faculty_id"}
+        if not columns or any(
+            column not in allowed_course_columns for column in columns
+        ):
+            raise ValueError("COLUMN_NOT_SUPPORTED")
+
+        quoted_columns = ", ".join(f"`courses`.`{column}`" for column in columns)
+        sql = (
+            f"SELECT {quoted_columns} "
+            "FROM `courses` "
+            "JOIN `faculty_course_access` "
+            "ON `courses`.`course_id` = `faculty_course_access`.`course_id` "
+            "WHERE `faculty_course_access`.`faculty_id` = %s"
+        )
+        return sql, (user["faculty_id"],) 
+        
+    if not conditions and user.get("role") != "Admin":
         raise ValueError("ROW_RESTRICTION_REQUIRED")
 
     quoted_columns = ", ".join(f"`{column}`" for column in columns)
@@ -99,5 +127,9 @@ def build_parameterized_select(query: Dict[str, Any]) -> Tuple[str, Tuple[Any, .
         predicates.append(f"`{key}` = %s")
         params.append(value)
 
-    sql = f"SELECT {quoted_columns} FROM `{table}` WHERE " + " AND ".join(predicates)
+    if predicates:
+        sql = (f"SELECT {quoted_columns} FROM `{table}` WHERE " + " AND ".join(predicates))
+    else:
+        sql = f"SELECT {quoted_columns} FROM `{table}`"
+     #sql = f"SELECT {quoted_columns} FROM `{table}` WHERE " + " AND ".join(predicates)
     return sql, tuple(params)

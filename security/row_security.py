@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Set
 
-RLS_TABLES = {"attendance", "marks", "students"}
+RLS_TABLES = {"attendance", "marks", "students", "courses"}
 
 
 def requires_row_restriction(role: str, table: str) -> bool:
@@ -19,26 +19,47 @@ def check_row_access(user: Dict[str, Any], query: Dict[str, Any]) -> str:
 
     if role == "Student":
         student_id = user.get("student_id")
+
         if student_id is None:
             return "ROW_ACCESS_DENIED"
-        if "student_id" not in conditions:
-            return "ROW_RESTRICTION_MISSING"
-        return "ALLOW" if conditions["student_id"] == student_id else "ROW_ACCESS_DENIED"
+
+        if table in {"marks", "attendance", "students"}:
+            if "student_id" not in conditions:
+                return "ROW_RESTRICTION_MISSING"
+
+            return (
+                "ALLOW"
+                if conditions["student_id"] == student_id
+                else "ROW_ACCESS_DENIED"
+            )
+
+        if table == "courses":
+            return "ROW_ACCESS_DENIED"
 
     if role == "Faculty":
         faculty_id = user.get("faculty_id")
-        permitted_courses: Set[int] = set(user.get("permitted_course_ids", []))
+        permitted_courses: Set[int] = set(
+            user.get("permitted_course_ids", [])
+        )
+
         if faculty_id is None:
             return "ROW_ACCESS_DENIED"
 
-        if table in {"attendance", "marks"}:
-            if "course_id" not in conditions:
-                return "ROW_RESTRICTION_MISSING"
-            return "ALLOW" if conditions["course_id"] in permitted_courses else "ROW_ACCESS_DENIED"
+        if table == "courses":
+            return (
+                "ALLOW"
+                if query.get("subject") == "self"
+                else "ROW_ACCESS_DENIED"
+            )
 
-        if table == "students":
+        if table in {"attendance", "marks", "students"}:
             if "course_id" not in conditions:
                 return "ROW_RESTRICTION_MISSING"
-            return "ALLOW" if conditions["course_id"] in permitted_courses else "ROW_ACCESS_DENIED"
+
+            return (
+                "ALLOW"
+                if conditions["course_id"] in permitted_courses
+                else "ROW_ACCESS_DENIED"
+            )
 
     return "ROW_ACCESS_DENIED"
