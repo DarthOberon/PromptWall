@@ -5,6 +5,7 @@ from datetime import timedelta
 from flask import Flask, jsonify, request, session
 from flask_session import Session
 from streamlit import user
+from database.connection import get_connection
 
 from database.gateway import DatabaseGateway
 from AI.query_parser import GeminiQueryParser
@@ -74,6 +75,53 @@ def logout():
 
 
 gateway = DatabaseGateway()
+
+
+@app.route("/api/admin/audit-logs", methods=["GET"])
+def admin_audit_logs():
+    current_user = session.get("user")
+
+    if not isinstance(current_user, dict):
+        return jsonify({"error": "AUTHENTICATION_REQUIRED"}), 401
+
+    if current_user.get("role") != "Admin":
+        return jsonify({"error": "ADMIN_ACCESS_REQUIRED"}), 403
+
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            """
+            SELECT
+                log_id,
+                user_id,
+                decision,
+                reason,
+                table_name,
+                operation,
+                risk_score,
+                created_at
+            FROM audit_logs
+            ORDER BY log_id DESC
+            LIMIT 100
+            """
+        )
+        logs = cursor.fetchall()
+
+        for log in logs:
+            if log.get("created_at") is not None:
+                log["created_at"] = log["created_at"].isoformat()
+
+        return jsonify({"logs": logs}), 200
+    except Exception:
+        app.logger.exception("Failed to retrieve audit logs")
+        return jsonify({"error": "AUDIT_LOGS_UNAVAILABLE"}), 500
+    finally:
+        cursor.close()
+        connection.close()
+
+
 llm = GeminiQueryParser()
 
 @app.route("/")
@@ -122,7 +170,7 @@ def ask():
             "reason": "REQUEST_BODY_MISSING"
         }), 400
 
-    
+
     user = session.get("user")
     message = data.get("message")
 
@@ -138,7 +186,6 @@ def ask():
             "decision": "BLOCK",
             "reason": "USER_OR_MESSAGE_MISSING"
         }), 400
-
 
     safe_to_parse, safety_reason = check_request_safety(message)
 
@@ -166,25 +213,14 @@ def ask():
 
                 if not isinstance(conditions, dict):
                     conditions = {}
-
-                conditions["student_id"] = user.get("student_id")
-                parsed_query["row_conditions"] = conditions
-        app.logger.info(
-            "DEBUG message=%r | parsed_conditions=%r",
-            message,
-            (parsed.get("query") or {}).get("row_conditions")
-
-            
-    if isinstance(parsed, dict) else None,
-)
-        app.logger.info("Debug: Parsed query: %s", parsed)
+                    conditions["student_id"] = user.get("student_id")
+                    parsed_query["row_conditions"] = conditions
 
         if not isinstance(parsed, dict) or parsed.get("status") != "READY":
-            reason = (
+            reason =(
                 parsed.get("reason", "UNSUPPORTED_OR_UNSAFE_REQUEST")
                 if isinstance(parsed, dict)
-                else "INVALID_MODEL_RESPONSE"
-            )
+                else "INVALID_MODEL_RESPONSE")
 
             return jsonify({
                 "decision": "BLOCK",
@@ -214,10 +250,6 @@ def ask():
                 "reason": "CROSS_STUDENT_ACCESS_DENIED",
                 "structured_query": None
             }), 403
-
-        
-
-        
         
         if user.get("role") == "Student":
             table = structured_query.get("table")

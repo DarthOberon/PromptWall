@@ -6,6 +6,8 @@ never executes raw SQL supplied by a caller.
 
 from typing import Any, Dict, Tuple
 
+from security.risk_scoring import calculate_risk_score
+
 from streamlit import user
 
 from database.connection import get_connection
@@ -15,7 +17,6 @@ from security.audit import log_event
 
 class DatabaseGateway:
     """Authorize structured requests before executing parameterized SQL."""
-
     def execute(self, user: Dict[str, Any], query: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(user, dict) or not isinstance(query, dict):
             return {
@@ -24,14 +25,38 @@ class DatabaseGateway:
             }
 
         decision = authorize_query(user, query)
+        table = query.get("table")
+        operation = query.get("operation")
 
         if decision["decision"] != "ALLOW":
+            risk_score = calculate_risk_score(
+                decision["decision"], decision["reason"]
+            )
+            log_event(
+                user,
+                decision["decision"],
+                decision["reason"],
+                table,
+                operation,
+                risk_score,
+            )
+            return {**decision, "risk_score": risk_score}
 
-            log_event(user, decision["decision"], decision["reason"],query.get("table"),query.get("operation"))
-            return decision
+        try:
+            sql, params = build_parameterized_select(query, user)
+        except ValueError as exc:
+            reason = str(exc)
+            risk_score = calculate_risk_score("BLOCK", reason)
+            log_event(user, "BLOCK", reason, table, operation, risk_score)
+            return {
+                "decision": "BLOCK",
+                "reason": reason,
+                "risk_score": risk_score,
+            }
 
-        sql, params = build_parameterized_select(query, user)
-        log_event(user, "ALLOW", "AUTHORIZED", query.get("table"),query.get("operation"))
+        risk_score = calculate_risk_score("ALLOW", "AUTHORIZED")
+        log_event(user, "ALLOW", "AUTHORIZED", table, operation, risk_score)
+
         connection = get_connection()
         cursor = connection.cursor(dictionary=True)
         try:
@@ -41,10 +66,12 @@ class DatabaseGateway:
                 "decision": "ALLOW",
                 "reason": "AUTHORIZED",
                 "rows": rows,
+                "risk_score": risk_score,
             }
         finally:
             cursor.close()
             connection.close()
+
 
 
 def build_parameterized_select(query: Dict[str, Any], user: Dict[str, Any],) -> Tuple[str, Tuple[Any, ...]]:

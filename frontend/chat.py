@@ -100,6 +100,7 @@ if not st.session_state.user:
 
 
 user = st.session_state.user
+is_admin = user.get("role") == "Admin"
 
 with st.sidebar:
     st.image(
@@ -146,6 +147,110 @@ with st.sidebar:
 
 st.title("🛡️ PromptWall")
 st.caption(f"Currently chatting with: **{selected_model}**")
+
+
+
+if is_admin:
+    with st.expander("Admin — Audit & Risk Dashboard", expanded=False):
+        if st.button("Refresh audit data"):
+            st.rerun()
+
+        try:
+            audit_response = http.get(
+                f"{API_BASE}/api/admin/audit-logs",
+                timeout=15,
+            )
+
+            if audit_response.status_code == 200:
+                audit_logs = audit_response.json().get("logs", [])
+
+                total_requests = len(audit_logs)
+                blocked_requests = sum(
+                    log.get("decision") == "BLOCK" for log in audit_logs
+                )
+                scored_logs = [
+                    log for log in audit_logs
+                    if log.get("risk_score") is not None
+                ]
+                high_risk = sum(
+                    log["risk_score"] >= 70 for log in scored_logs
+                )
+                average_risk = (
+                    sum(log["risk_score"] for log in scored_logs)
+                    / len(scored_logs)
+                    if scored_logs else None
+                )
+
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Requests (latest 100)", total_requests)
+                col2.metric("Blocked", blocked_requests)
+                col3.metric("High risk (70+)", high_risk)
+                col4.metric(
+                    "Average risk",
+                    f"{average_risk:.1f}/100" if average_risk is not None else "N/A",
+                    help=f"Calculated from {len(scored_logs)} scored records only.",
+                )
+
+                if scored_logs:
+                    st.subheader("Risk Level Distribution")
+
+                    low_risk = sum(
+                        log["risk_score"] < 40 for log in scored_logs
+                    )
+                    medium_risk = sum(
+                        40 <= log["risk_score"] < 70 for log in scored_logs
+                    )
+                    high_risk_count = sum(
+                        log["risk_score"] >= 70 for log in scored_logs
+                    )
+
+                    risk_distribution = {
+                        "Risk Level": [
+                            "Low (0–39)",
+                            "Medium (40–69)",
+                            "High (70–100)",
+                        ],
+                        "Requests": [
+                            low_risk,
+                            medium_risk,
+                            high_risk_count,
+                        ],
+                    }
+
+                    st.bar_chart(
+                        risk_distribution,
+                        x="Risk Level",
+                        y="Requests",
+                    )
+                    st.caption(
+                        f"Distribution of {len(scored_logs)} scored requests. "
+                        "Scores are rule-based indicators, not probabilities "
+                        "of an attack."
+                    )
+                else:
+                    st.info("No risk-scored audit records are available yet.")
+
+                st.subheader("Recent audit activity")
+                if audit_logs:
+                    st.dataframe(
+                        audit_logs,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                else:
+                    st.info("No audit records found.")
+
+            elif audit_response.status_code == 401:
+                st.warning("Your session has expired. Please log in again.")
+            elif audit_response.status_code == 403:
+                st.error("Admin access is required.")
+            else:
+                st.error("Could not retrieve audit records.")
+
+        except requests.RequestException:
+            st.error("Could not connect to the audit endpoint.")
+
+
 
 for message in st.session_state.messages:
     avatar = "🤖" if message["role"] == "assistant" else "👤"
