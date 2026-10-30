@@ -21,6 +21,9 @@ def calculate_risk_score(decision: str, reason: str) -> int:
         "REQUEST_REJECTED": 40,
         "INVALID_MODEL_RESPONSE": 50,
         "REQUEST_PROCESSING_FAILED": 50,
+        "PROMPT_INJECTION_DETECTED": 90,
+        "UNSUPPORTED_OR_UNSAFE_REQUEST": 75,
+        "EMPTY_REQUEST": 20,
     }
 
     return risk_scores.get(reason, 50)

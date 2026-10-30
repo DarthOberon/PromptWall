@@ -7,9 +7,6 @@ never executes raw SQL supplied by a caller.
 from typing import Any, Dict, Tuple
 
 from security.risk_scoring import calculate_risk_score
-
-from streamlit import user
-
 from database.connection import get_connection
 from security.authorization import authorize_query
 from security.audit import log_event
@@ -84,6 +81,23 @@ def build_parameterized_select(query: Dict[str, Any], user: Dict[str, Any],) -> 
     columns = query["columns"]
     conditions = query["row_conditions"]
 
+    # Validate structured query input types
+    operation = query.get("operation")
+
+    if operation != "SELECT":
+        raise ValueError("OPERATION_NOT_SUPPORTED")
+    if not isinstance(table, str):
+        raise ValueError("INVALID_TABLE_FORMAT")
+
+    if not isinstance(columns, list) or not columns:
+        raise ValueError("INVALID_COLUMNS_FORMAT")
+
+    if not all(isinstance(column, str) for column in columns):
+        raise ValueError("INVALID_COLUMN_FORMAT")
+
+    if not isinstance(conditions, dict):
+        raise ValueError("INVALID_ROW_CONDITIONS_FORMAT")
+
     allowed_tables = {"attendance", "marks", "students", "courses"}
     allowed_columns = {
         "attendance": {"attendance_date", "status", "student_id", "course_id"},
@@ -138,7 +152,7 @@ def build_parameterized_select(query: Dict[str, Any], user: Dict[str, Any],) -> 
             params.append(value)
 
         sql = (
-            f"SELECT" + ", ".join(f"`students`.`{column}`" for column in columns) + " " # FLAGGED FOR LATER REVIEW
+            f"SELECT " + ", ".join(f"`students`.`{column}`" for column in columns) + " "
             f"FROM `students` "
             f"JOIN `student_course` "
             f"ON `students`.`student_id` = `student_course`.`student_id` "

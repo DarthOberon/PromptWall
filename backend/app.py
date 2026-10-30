@@ -11,6 +11,9 @@ from database.gateway import DatabaseGateway
 from AI.query_parser import GeminiQueryParser
 from security.request_safety import check_request_safety
 from security.auth import authenticate_user
+from security.audit import log_event
+from security.risk_scoring import calculate_risk_score
+
 
 
 app = Flask(__name__)
@@ -190,9 +193,26 @@ def ask():
     safe_to_parse, safety_reason = check_request_safety(message)
 
     if not safe_to_parse:
+        user = session.get("user", {})
+
+        risk_score = calculate_risk_score(
+        "BLOCK",
+        safety_reason
+    )
+
+        log_event(
+            user,
+            "BLOCK",
+            safety_reason,
+            None,
+            None,
+            risk_score,
+        )
+
         return jsonify({
             "decision": "BLOCK",
             "reason": safety_reason,
+            "risk_score": risk_score,
             "natural_language_request": message,
             "structured_query": None
         }), 403
